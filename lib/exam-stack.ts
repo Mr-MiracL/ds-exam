@@ -13,6 +13,8 @@ import * as events from "aws-cdk-lib/aws-lambda-event-sources";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
+import * as iam from 'aws-cdk-lib/aws-iam';
+
 
 export class ExamStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -119,7 +121,34 @@ export class ExamStack extends cdk.Stack {
         REGION: "eu-west-1",
       },
     });
+    bucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED,                      
+      new s3n.SnsDestination(topic1)             
+    );
+    topic1.addSubscription(new subs.SqsSubscription(queueA));
+
+    const EventSource = new events.SqsEventSource(queueA, {
+      batchSize: 5,
+      maxBatchingWindow: cdk.Duration.seconds(5),
+    });
+    lambdaXFn.addEventSource(EventSource); 
+
+    new cdk.CfnOutput(this, "bucketName", {
+      value: bucket.bucketName,
+    });
     
+    lambdaYFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ses:SendEmail",
+          "ses:SendRawEmail",
+          "ses:SendTemplatedEmail",
+        ],
+        resources: ["*"],  
+      })
+    );
+
   }
 }
   
