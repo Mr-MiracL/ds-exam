@@ -148,7 +148,23 @@ export class ExamStack extends cdk.Stack {
         resources: ["*"],  
       })
     );
+    topic1.addSubscription(new subs.SqsSubscription(queueA, {
+      filterPolicy: {
+        country: sns.SubscriptionFilter.stringFilter({
+          allowlist: ['Ireland', 'China'],
+        }),
+      },
+    }));
 
+
+    topic1.addSubscription(new subs.LambdaSubscription(lambdaYFn, {
+      filterPolicy: {
+        country: sns.SubscriptionFilter.stringFilter({
+          denylist: ['Ireland', 'China'],
+        }),
+      },
+    }));
+  
   }
 }
   
