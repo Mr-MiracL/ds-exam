@@ -9,22 +9,37 @@ const SES_EMAIL_FROM = 'yourEmailAddressFrom' ;
 const SES_EMAIL_TO =  'yourEmailAddressTo';
 export const handler: Handler = async (event, context) => {
   try {
-    console.log("Received SNS message:");
-    console.log(JSON.stringify(event));
-
-    for (const record of event.Records || []) {
-      const snsRecord = record.Sns;
-      const message = JSON.parse(snsRecord.Message);
-
-      console.log("Name:", message.name);
-      console.log("Country:", message.address?.country);
-      console.log("Email:", message.email || "(no email)");
+    for (const record of event.Records) {  
+      const recordBody = JSON.parse(record.body);  
+      const snsMessage = JSON.parse(recordBody.Message);  
+  
+      if (snsMessage.Records) {  
+        console.log("Record body ", JSON.stringify(snsMessage));
+  
+        for (const messageRecord of snsMessage.Records) {  
+          const s3e = messageRecord.s3;  
+          const srcBucket = s3e.bucket.name;  
+          const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));  
+  
+          try {
+      
+            const { name, email, message }: ContactDetails = {
+              name: "The Photo Album", 
+              email: SES_EMAIL_FROM,   
+              message: `We received your Image. Its URL is s3://${srcBucket}/${srcKey}`, 
+            };
+  
+            const params = sendEmailParams({ name, email, message });  
+            await client.send(new SendEmailCommand(params));  
+          } catch (error: unknown) {
+            console.log("ERROR is: ", error);  
+          }
+        }
+      }
     }
-  } catch (error: any) {
-    console.error("Error handling SNS message:", error);
-    throw new Error(JSON.stringify(error));
-  }
-};
+    }
+}
+
 function sendEmailParams({ name, email, message }: ContactDetails) {
   const parameters: SendEmailCommandInput = {
     Destination: {
@@ -36,10 +51,7 @@ function sendEmailParams({ name, email, message }: ContactDetails) {
           Charset: "UTF-8",
           Data: getHtmlContent({ name, email, message }),
         },
-        // Text: {                      
-        //   Charset: "UTF-8",
-        //   Data: getTextContent({ name, email, message }),
-        // },
+     
       },
       Subject: {
         Charset: "UTF-8",
@@ -57,8 +69,8 @@ function getHtmlContent({ name, email, message }: ContactDetails) {
       <body>
         <h2>Sent from: </h2>
         <ul>
-          <li style="font-size:18px">👤 <b>${name}</b></li>
-          <li style="font-size:18px">✉️ <b>${email}</b></li>
+          <li > <b>${name}</b></li>
+          <li > <b>${email}</b></li>
         </ul>
         <p style="font-size:18px">${message}</p>
       </body>
@@ -68,10 +80,10 @@ function getHtmlContent({ name, email, message }: ContactDetails) {
 
 function getTextContent({ name, email, message }: ContactDetails) {
   return `
-    Received an Email. 📬
-    Sent from:
-        👤 ${name}
-        ✉️ ${email}
+
+ 
+         ${name}
+         ${email}
     ${message}
   `;
 }
